@@ -84,7 +84,7 @@ library(tidyverse)
 
 ```{r}
 # reading in data set
-data <- read.csv("~/Desktop/Spring 2024/Data Analytics with R/Final Project/Data/data.csv")
+data <- read.csv("~/Desktop/Spring 2024/Data Analytics with R/Final Project/FastFood_v_campus_meal_plan/Data/data.csv")
 ```
 
 ## 4a. Overview
