@@ -1,0 +1,264 @@
+---
+title: "Nutrition Data Extraction"
+output: html_notebook
+---
+
+
+```{r}
+install.packages("rvest")
+library(rvest)
+library(tidyverse)
+```
+list of specific food chain to get nutrition data from. Each item is the end of the link used to scrape the data (i.e. "https://fastfoodnutrition.org/starbucks")
+```{r}
+fast_food <- list( "mcdonalds", "wawa", "burger-king", "subway", "taco-bell", "chick-fil-a", "chipotle", "starbucks", "popeyes", "dunkin-donuts", "panera-bread", "dominos-pizza", "wendys")
+
+# for testing
+more_fast_food <- list("cookout", "freddys", "kfc", "tropical-smoothie-cafe", "which-wich", "five-guys")
+```
+
+Labels of relevant nutrition facts to get.
+Separated into single and double labels b/c some labels include both the amount of nutrition for a single aspect and the % cover of one's daily healthy intake.
+```{r}
+single_labels <- list("Serving Size", "Calories", "Calories From Fat", "Trans Fat", "Sugars", "Vitamin A", "Vitamin C", "Calcium", "Iron")
+double_labels <- list("Total Fat", "Saturated Fat", "Cholesterol", "Sodium", "Total Carbohydrates", "Dietary Fiber", "Protein")
+```
+
+Creating empty data frame
+```{r}
+df <- data.frame("Restaurant" = character(),
+                 "Item" = character(),
+                 "Serving Size" = numeric(),
+                 "Calories" = numeric(),
+                 "Calories From Fat" = numeric(),
+                 "Total Fat" = numeric(),
+                 "Daily % Total Fat" = numeric(),
+                 "Saturated Fat" = numeric(),
+                 "Daily % Saturated Fat" = numeric(),
+                 "Trans Fat" = numeric(),
+                 "Cholesterol" = numeric(),
+                 "Daily % Cholesterol" = numeric(),
+                 "Sodium" = numeric(),
+                 "Daily % Sodium" = numeric(),
+                 "Total Carbohydrates" = numeric(),
+                 "Daily % Carbohydrates" = numeric(),
+                 "Dietary Fiber" = numeric(),
+                 "Daily % Fiber" = numeric(),
+                 "Sugars" = numeric(),
+                 "Protein" = numeric(),
+                 "Daily % Protein" = numeric(),
+                 "Vitamin A" = numeric(),
+                 "Vitamin C" = numeric(),
+                 "Calcium" = numeric(),
+                 "Iron" = numeric(),
+                 "Type" = character()
+                 )
+```
+
+Custom Function to grab links to restaurant products. If the nutrition table isn't on the original link, 
+the product has multiple variants. In this case, each varient has it's own link that needs to be scraped.
+```{r}
+find_nutrition_links <- function(link) {
+  data <- c()  
+  nutrition <- read_html(link)
+  nutrition_table <- nutrition %>% html_element("table") %>% html_elements("tr")
+  if (length(nutrition_table) == 0) {
+    nutrition_links <- nutrition %>% html_element("div.mobile_padding") %>% html_elements("a.dropdown-item") %>% html_attr("href")
+    for (link in nutrition_links) {
+      new_link <- paste("https://fastfoodnutrition.org", link, sep = "")
+      data <- append(data, new_link)
+    }
+  } else {
+    data <- append(data, link)
+  }
+  return(data)
+}
+```
+
+Function to create new empty item to put scraped data in.
+```{r}
+create_blank_entry <- function() {
+  new_item <- list(
+  Restaurant = NA,
+  Item = NA,
+  `Serving Size` = NA,
+  Calories = NA,
+  `Calories From Fat` = NA,
+  `Total Fat` = NA,
+  `Daily % Total Fat` = NA,
+  `Saturated Fat` = NA,
+  `Daily % Saturated Fat` = NA,
+  `Trans Fat` = NA,
+  Cholesterol = NA,
+  `Daily % Cholesterol` = NA,
+  Sodium = NA,
+  `Daily % Sodium` = NA,
+  `Total Carbohydrates` = NA,
+  `Daily % Total Carbohydrates` = NA,
+  `Dietary Fiber` = NA,
+  `Daily % Dietary Fiber` = NA,
+  Sugars = NA,
+  Protein = NA,
+  `Daily % Protein` = NA,
+  `Vitamin A` = NA,
+  `Vitamin C` = NA,
+  Calcium = NA,
+  Iron = NA,
+  Type = NA
+)
+  
+  return(new_item)
+}
+```
+
+Checking to make sure data frame has been created and is empty.
+```{r}
+df
+```
+
+Finally scraping all data!
+```{r}
+for (restaurant in more_fast_food) {
+  error_messages <- c()
+  establishment <- gsub("-", " ", restaurant)
+  print(paste("started web scraping nutrition facts from", establishment))
+  # reading HTML from base restaurant link.
+  link <- paste("https://fastfoodnutrition.org/", restaurant, sep = "")
+  base <- read_html(link)
+  
+  # getting a list of links to every product in restaurant.
+  food_items <- base %>% html_elements("a.listlink") %>% html_attr("href") 
+  
+  for (food_tag in food_items) {
+    food_link <- paste("https://fastfoodnutrition.org", food_tag, sep = "")
+    
+    # custom function to pull correct links b/c Web scrape differs if item has multiple sizes or varieties
+    # (i.e. spicy chicken sandwich vs regular chicken sandwich, small vs medium vs large drink..).
+    food_link_helper <- find_nutrition_links(food_link)
+    
+    # loop through correct list of products.
+    for (link in food_link_helper) {
+      nutrition <- read_html(link)
+      
+      # pull nutrition table from product web page.
+      nutrition_table <- nutrition %>% html_element("table") %>% html_elements("tr")
+      
+      # pull type of product.
+      type <- nutrition %>% html_element("nav.bcrumb") %>% html_elements("a.c_t")
+      
+      new_item = create_blank_entry()
+    
+      if (length(nutrition_table) > 0) {
+        
+        # getting relevant nutrition information from table on product web page.
+        data <- nutrition_table %>% html_elements("td")
+        
+        # adding restaurant label to new item that will be added to data frame.
+        new_item["Restaurant"] <- establishment
+        
+        # adding type and item labels to new item that will be added to data frame.
+        # temp variable is used to get item name
+        temp <- strsplit(link, "/")[[1]]
+        
+        if (length(food_link_helper) > 1) {
+          new_item["Type"] <- html_text(type[length(type) - 1])
+        
+          edited_temp <- paste(temp[length(temp) - 1], "(", temp[length(temp)], ")")
+          new_item["Item"] <- gsub("-", " ", edited_temp)
+        } else {
+          new_item["Type"] <- html_text(type[length(type)])
+          new_item["Item"] <- gsub("-", " ", temp[length(temp)])
+        }
+        
+        # cleaning and adding labeled data to item that will be added to data frame.
+        i <- 1
+        while(i <= length(data)) {
+          rough_title = html_text(data[i])
+          cleaned_title = trimws(rough_title)
+          
+          # some nutrition facts include the daily percentage that is covered by the item.
+          # To add this information to item, they are separated into single labels (just the amount of nutrition type) 
+          # and double labels (amount of nutrition type + daily percentage covered).
+          if (cleaned_title %in% single_labels) {
+            cleaned_value = as.numeric(gsub("[^0-9.]", "",html_text(data[i + 1])))
+            while (is.na(cleaned_value)) {
+              i <- i + 1
+              cleaned_value = as.numeric(gsub("[^0-9.]", "",html_text(data[i + 1])))
+            }
+            new_item[cleaned_title] = cleaned_value
+          }
+          if (cleaned_title %in% double_labels) {
+            cleaned_value = as.numeric(gsub("[^0-9.]", "",html_text(data[i + 1])))
+            while (is.na(cleaned_value)) {
+              i <- i + 1
+              cleaned_value = as.numeric(gsub("[^0-9.]", "",html_text(data[i + 1])))
+            }
+            new_item[cleaned_title] = cleaned_value
+            i <- i + 1
+          
+            cleaned_title <- paste("Daily % ", cleaned_title, sep = "")
+            cleaned_value = as.numeric(gsub("[^0-9.]", "",html_text(data[i + 1])))
+            while (is.na(cleaned_value)) {
+              i <- i + 1
+              cleaned_value = as.numeric(gsub("[^0-9.]", "",html_text(data[i + 1])))
+            }
+            new_item[cleaned_title] = cleaned_value
+          }
+          i <- i + 1
+        }
+        # adding final item with full nutritional data to data frame.
+        df[nrow(df)+1,] <- new_item
+        
+      } else {
+        
+        # print error message if an items nutrition table wasn't found.
+        error <- paste("Having problem with an item from ", restaurant)
+        print(error)
+        
+        # add error message to list to potentially acknowledge them later
+        error_messages <- append(error_messages, error)
+      }
+    }
+  }
+  # showing that scraping for restaurant has been completed and the number of errors found
+  print(paste("finished scraping data from", establishment))
+  print(paste("Number of errors while scrape:", length(error_messages)))
+  print("")
+}
+```
+
+```{r}
+df
+```
+```{r}
+print(names(df))
+```
+
+
+```{r}
+# changing the column names of the data frame before exporting it into CSV 
+names(df) <- c("Restaurant", "Item", "Serving_Size", "Calories", "Calories_From_Fat", "Total_Fat.g", "Daily_Percent_Total_Fat", "Saturated_Fat.g", "Daily_Percent_Saturated_Fat", "Trans_Fat.g", "Cholesterol.mg", "Daily_Percent_Cholesterol", "Sodium.mg", "Daily_Percent_Sodium", "Total_Carbohydrates.g", "Daily_Percent_Total_Carbohydrates", "Dietary_Fiber.g", "Daily_Percent_Dietary_Fiber", "Sugars.g", "Protein.g", "Daily_Percent_Protein", "Vitamin_A", "Vitamin_C", "Calcium", "Iron", "Type")
+
+rownames(df) <- NULL
+```
+
+Now the data is filled with all the nutrition data I could scrape from fastfoodnutrition.org
+```{r}
+df
+```
+
+
+```{r}
+# export the data frame containing the scraped data to a CSV file 
+write.csv(df, file = "./data.csv", fileEncoding = "UTF-8")
+```
+
+
+
+
+
+
+
+
+
+
