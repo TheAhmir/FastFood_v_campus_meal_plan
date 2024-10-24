@@ -8,3 +8,7 @@ My project addresses a significant concern within the student community at Willi
 
 ## Data Source
 -  I decided to scrape fastfoodnutrition.org personally to ensure I was able to obtain all the information I needed.
+
+<br></br>
+
+[View the detailed EDA](https://theahmir.github.io/FastFood_v_campus_meal_plan/EDA/PostellAhmir_HTML%20EDA.html)
